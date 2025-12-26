@@ -1,0 +1,13 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+.env
+
+# MacOS/Windows junk
+.DS_Store
+Thumbs.db
+
+# Node/Frontend (Future proofing)
+frontend/node_modules/
+frontend/.next/
