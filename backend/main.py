@@ -1,11 +1,22 @@
 import os
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from rag import process_document  # Humne jo abhi function banaya
+from fastapi.middleware.cors import CORSMiddleware  # 👈 YE HAI NEW IMPORT
+from rag import process_document
 
 app = FastAPI()
 
-# Uploads folder banao agar nahi hai
+# --- CORS SETTINGS (YE IMPORTANT HAI) ---
+# Ye browser ko batata hai ki "Haan, localhost:3000 se request aane do"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Filhal hum sabko allow kar rahe hain (Development ke liye)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Uploads folder setup
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -15,20 +26,14 @@ def read_root():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    """
-    User file upload karega -> Hum save karenge -> Phir Pinecone mein daalenge
-    """
     try:
-        # 1. File ko local disk par save karo temporarily
+        # 1. File save karo
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # 2. File ko process karo (RAG Magic)
+        # 2. Process karo
         process_document(file_path)
-
-        # 3. Cleanup (Optional: File delete kar sakte ho baad mein)
-        # os.remove(file_path) 
 
         return {"filename": file.filename, "status": "Successfully added to Brain 🧠"}
     
