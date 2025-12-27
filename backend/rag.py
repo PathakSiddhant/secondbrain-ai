@@ -4,6 +4,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 from langchain_pinecone import PineconeVectorStore
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 
@@ -11,41 +14,58 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 
-# Setup Embeddings (Model 004 use kar rahe hain jo working hai)
+# 1. Setup Embeddings
 embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
-# Setup Vector DB
+# 2. Setup Vector DB
 vector_store = PineconeVectorStore(index_name=PINECONE_INDEX_NAME, embedding=embeddings)
 
-# Setup LLM
+# 3. Setup LLM (Gemini)
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
+    model="gemini-flash-latest",
+    temperature=0.3, # 0.3 matlab thoda sa creative, par focused
 )
 
 def process_document(file_path):
-    """
-    Ye function PDF ko padh kar Pinecone mein save karega.
-    """
+    """PDF Upload Logic"""
     print(f"📄 Processing file: {file_path}")
-    
-    # 1. Load PDF
     loader = PyPDFLoader(file_path)
     raw_docs = loader.load()
-    print(f"✅ PDF Loaded. Total Pages: {len(raw_docs)}")
-
-    # 2. Split Text (Chunks banana)
-    # 1000 characters ka ek chunk, aur 200 ka overlap taaki context na tute
+    
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents = text_splitter.split_documents(raw_docs)
-    print(f"🧩 Split into {len(documents)} text chunks.")
-
-    # 3. Save to Pinecone
-    print("🚀 Uploading to Pinecone... (thoda time lagega)")
-    vector_store.add_documents(documents)
-    print("🎉 Success! Document stored in Memory.")
     
+    print("🚀 Uploading to Pinecone...")
+    vector_store.add_documents(documents)
+    print("🎉 Document stored.")
     return True
+
+def answer_query(question):
+    """
+    RAG Logic: Sawal ka jawab document se dhoond kar do.
+    """
+    print(f"🤔 Thinking about: {question}")
+    
+    # 1. Retriever: Pinecone se top 3 matching pages lao
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+
+    # 2. Prompt: AI ko instruct karo
+    template = """
+    You are a helpful assistant. Answer the question based ONLY on the following context:
+    {context}
+
+    Question: {question}
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+
+    # 3. Chain: Steps ko jodo
+    chain = (
+        {"context": retriever, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # 4. Run logic
+    result = chain.invoke(question)
+    return result
