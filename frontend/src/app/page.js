@@ -288,7 +288,7 @@ export default function Home() {
 
       {/* --- FOOTER --- */}
       <footer className="py-8 text-center text-zinc-600 text-sm border-t border-zinc-900 bg-black">
-         <p>© 2024 SecondBrain AI. Built with ❤️ for the future.</p>
+         <p>© 2025 SecondBrain AI. Built with ❤️ for the future.</p>
       </footer>
     </div>
   );
