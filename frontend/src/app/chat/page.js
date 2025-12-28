@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Send, Bot, User, PlusCircle, CloudUpload, Loader2, Sparkles, Brain, Link as LinkIcon, Youtube, ArrowUpRight } from "lucide-react"; 
 import { motion, AnimatePresence } from "framer-motion"; 
 import ReactMarkdown from "react-markdown"; 
+import { UserButton, useUser } from "@clerk/nextjs"; // ✅ Clerk Import
 
+// --- HELPER FUNCTIONS ---
 const getYouTubeID = (url) => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
@@ -28,6 +30,7 @@ const LoadingSteps = () => {
 };
 
 export default function ChatPage() {
+  const { user } = useUser(); // Get User Details
   const [messages, setMessages] = useState([]); 
   const [input, setInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -122,8 +125,10 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen bg-[#050505] text-white font-sans selection:bg-indigo-500/30 overflow-hidden">
       
-      {/* SIDEBAR */}
-      <div className="w-80 bg-[#0a0a0a] border-r border-white/5 flex-col hidden md:flex flex-none z-20 shadow-2xl">
+      {/* --- SIDEBAR --- */}
+      <div className="w-80 bg-[#0a0a0a] border-r border-white/5 flex flex-col md:flex flex-none z-20 shadow-2xl">
+        
+        {/* 1. LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/5 bg-white/2">
           <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.5)]">
             <Brain className="h-5 w-5 text-white" />
@@ -131,6 +136,7 @@ export default function ChatPage() {
           <span className="font-bold text-lg tracking-tight text-white">SecondBrain</span>
         </div>
 
+        {/* 2. VIDEO PLAYER (Dynamic) */}
         {currentVideoId && (
             <div className="p-4 border-b border-white/5 bg-black/40 animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="rounded-xl overflow-hidden border border-indigo-500/30 shadow-lg shadow-indigo-900/20 aspect-video relative group">
@@ -142,15 +148,39 @@ export default function ChatPage() {
             </div>
         )}
 
+        {/* 3. NEW CHAT BUTTON */}
         <div className="p-4 space-y-2">
           <Button onClick={handleNewChat} variant="outline" className="w-full justify-start gap-2 border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 transition-all">
             <PlusCircle className="h-4 w-4" /> New Chat
           </Button>
         </div>
+
+        {/* Spacer to push profile to bottom */}
+        <div className="flex-1"></div>
+
+        {/* 4. USER PROFILE (Fixed at Bottom) */}
+        <div className="p-4 border-t border-white/5 bg-black/20">
+           <div className="flex items-center gap-3">
+              {/* Clerk User Button */}
+              <UserButton afterSignOutUrl="/" appearance={{
+                  elements: {
+                    avatarBox: "h-9 w-9 ring-2 ring-indigo-500/20"
+                  }
+              }}/>
+              <div className="flex flex-col">
+                 <span className="text-sm font-medium text-white max-w-37.5 truncate">
+                    {user?.fullName || "User"}
+                 </span>
+                 <span className="text-[10px] text-zinc-500">Free Plan</span>
+              </div>
+           </div>
+        </div>
       </div>
 
-      {/* MAIN CHAT */}
+      {/* --- MAIN CHAT AREA --- */}
       <div className="flex-1 flex flex-col relative bg-linear-to-b from-[#050505] to-[#0a0a0a]">
+        
+        {/* Background Gradients */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
            <div className="absolute top-[-20%] left-[20%] w-150 h-150 bg-indigo-600/5 rounded-full blur-[150px]" />
         </div>
@@ -191,7 +221,8 @@ export default function ChatPage() {
                    <Sparkles className="h-10 w-10 text-indigo-400 relative z-10" />
                 </div>
                 <div>
-                   <h3 className="text-2xl font-bold text-white mb-2">SidMini AI 2.0</h3>
+                   {/* Name Changed Here */}
+                   <h3 className="text-2xl font-bold text-white mb-2">SecondBrain AI</h3>
                    <p className="text-zinc-500">Ready to analyze PDFs & YouTube Videos.</p>
                 </div>
               </div>
@@ -208,30 +239,18 @@ export default function ChatPage() {
 
                     <div className={`max-w-full sm:max-w-[85%] ${msg.role === 'user' ? 'bg-zinc-800 text-white px-6 py-4 rounded-3xl rounded-tr-md shadow-md' : ''}`}>
                        {msg.role === 'ai' ? (
-                          // --- 🔥 THE MAGIC STYLING PART ---
                           <div className="text-zinc-100 leading-7">
                              <ReactMarkdown
                                 components={{
-                                   // 1. HEADINGS (Bada Text + Underline)
                                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mt-8 mb-4 border-b border-indigo-500/30 pb-2" {...props} />,
                                    h2: ({node, ...props}) => <h2 className="text-xl font-semibold text-indigo-200 mt-6 mb-3 flex items-center gap-2" {...props} />,
                                    h3: ({node, ...props}) => <h3 className="text-lg font-medium text-indigo-300 mt-4 mb-2" {...props} />,
-                                   
-                                   // 2. LISTS (Bullet Points Sahi Jagah Par)
                                    ul: ({node, ...props}) => <ul className="list-disc pl-6 space-y-2 mb-4 text-zinc-300 marker:text-indigo-500" {...props} />,
                                    ol: ({node, ...props}) => <ol className="list-decimal pl-6 space-y-2 mb-4 text-zinc-300 marker:text-indigo-500" {...props} />,
                                    li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                                   
-                                   // 3. PARAGRAPHS (Saans Lene Ki Jagah)
                                    p: ({node, ...props}) => <p className="mb-4 leading-relaxed text-zinc-200" {...props} />,
-                                   
-                                   // 4. HIGHLIGHTS (Bold Text)
                                    strong: ({node, ...props}) => <span className="font-bold text-indigo-400" {...props} />,
-                                   
-                                   // 5. LINKS
                                    a: ({node, ...props}) => <a className="text-indigo-400 underline hover:text-indigo-300 transition-colors" target="_blank" {...props} />,
-                                   
-                                   // 6. QUOTES
                                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 py-2 my-4 bg-zinc-900/50 rounded-r text-zinc-400 italic" {...props} />
                                 }}
                              >
@@ -275,7 +294,8 @@ export default function ChatPage() {
                     <Send className="h-5 w-5" />
                  </Button>
               </div>
-              <p className="text-center text-[10px] text-zinc-600 mt-3">SidMini AI • Powered by Gemini 2.0</p>
+              {/* Name Changed Here too */}
+              <p className="text-center text-[10px] text-zinc-600 mt-3">SecondBrain AI • Powered by Gemini 2.0</p>
            </div>
         </div>
 

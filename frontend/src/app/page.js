@@ -3,11 +3,14 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea"; 
-import { FileText, PlayCircle, Youtube, Globe, Brain, Mail, User, Star, Link } from "lucide-react"; 
+import { FileText, PlayCircle, Youtube, Globe, Brain, Mail, User, Star, Link as LinkIcon, ArrowRight, ShieldCheck, Zap, Bot } from "lucide-react"; 
 import Image from "next/image"; 
 import { motion } from "framer-motion";
+import Link from "next/link";
+// 👇 CLERK IMPORTS ADDED
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs"; 
 
-// Animations
+// --- ANIMATIONS ---
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
@@ -31,21 +34,51 @@ export default function Home() {
       <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.5)]">
               <Brain className="h-5 w-5 text-white" />
             </div>
             <span className="font-bold text-lg tracking-tight">SecondBrain</span>
           </div>
+
           <div className="hidden md:flex gap-8 text-sm font-medium text-zinc-400">
             <a href="#features" className="hover:text-white transition-colors">Capabilities</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a>
             <a href="#reviews" className="hover:text-white transition-colors">Reviews</a>
           </div>
-          <div className="flex gap-4">
-            {/* FIXED: Login Button Visibility */}
-            <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-zinc-800 hidden sm:flex">Log in</Button>
-            <Button className="bg-white text-black hover:bg-zinc-200 rounded-full px-6 transition-transform hover:scale-105">Get Started</Button>
+
+          <div className="flex gap-4 items-center">
+            
+            {/* 👇 LOGIC 1: AGAR USER LOGIN HAI TOH PROFILE DIKHAO */}
+            <SignedIn>
+                <UserButton afterSignOutUrl="/" appearance={{
+                    elements: { avatarBox: "h-9 w-9 ring-2 ring-indigo-500/50" }
+                }}/>
+            </SignedIn>
+
+            {/* 👇 LOGIC 2: AGAR LOGOUT HAI TOH SIGN IN DIKHAO */}
+            <SignedOut>
+                <Link href="/sign-in">
+                    <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-zinc-800 hidden sm:flex">
+                        Log in
+                    </Button>
+                </Link>
+                <Link href="/chat">
+                    <Button className="h-9 px-5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:shadow-[0_0_30px_rgba(79,70,229,0.7)]">
+                        Get Started <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                </Link>
+            </SignedOut>
+
+            {/* SignedIn user ke liye "Go to Chat" button navbar mein optional hai, Hero section mein bada wala hai */}
+            <SignedIn>
+                <Link href="/chat">
+                    <Button className="h-9 px-5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-all shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+                        Dashboard
+                    </Button>
+                </Link>
+            </SignedIn>
           </div>
+
         </div>
       </nav>
 
@@ -63,7 +96,7 @@ export default function Home() {
           >
             <motion.div variants={fadeIn} className="inline-flex items-center rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1.5 text-sm font-medium text-indigo-400">
               <span className="flex h-2 w-2 rounded-full bg-indigo-500 mr-2 animate-pulse"></span>
-              The Ultimate Knowledge Hub
+              v2.0 Now with YouTube Analysis
             </motion.div>
             
             <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
@@ -78,10 +111,25 @@ export default function Home() {
             </motion.p>
             
             <motion.div variants={fadeIn} className="flex flex-wrap gap-4">
-              <Button size="lg" className="h-14 px-8 text-lg bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-lg shadow-indigo-500/25 transition-transform hover:scale-105">
-                <FileText className="mr-2 h-5 w-5" /> 
-                Start Chatting
-              </Button>
+              
+              {/* 👇 LOGIC 3: SMART HERO BUTTON */}
+              <SignedOut>
+                  <Link href="/chat">
+                    <Button size="lg" className="h-14 px-8 text-lg bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-lg shadow-indigo-500/25 transition-transform hover:scale-105">
+                        <FileText className="mr-2 h-5 w-5" /> 
+                        Start Chatting
+                    </Button>
+                  </Link>
+              </SignedOut>
+
+              <SignedIn>
+                  <Link href="/chat">
+                    <Button size="lg" className="h-14 px-8 text-lg bg-emerald-600 hover:bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/25 transition-transform hover:scale-105">
+                        <Brain className="mr-2 h-5 w-5" /> 
+                        Go to Brain
+                    </Button>
+                  </Link>
+              </SignedIn>
               
               <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-zinc-700 bg-transparent text-zinc-300 hover:bg-white hover:text-black rounded-full transition-all duration-300">
                 <PlayCircle className="mr-2 h-5 w-5" /> 
@@ -98,7 +146,6 @@ export default function Home() {
                    "https://api.dicebear.com/7.x/avataaars/svg?seed=Sasha"
                  ].map((src, i) => (
                    <div key={i} className="h-10 w-10 rounded-full border-2 border-black bg-zinc-800 overflow-hidden relative">
-                      {/* FIXED: Added 'unoptimized' to bypass config issues */}
                       <Image 
                         src={src} 
                         alt="User Avatar" 
@@ -120,7 +167,6 @@ export default function Home() {
             transition={{ duration: 0.8 }}
             className="relative"
           >
-             {/* Using 'unoptimized' here too just to be safe */}
              <Image 
               src="/images/herobrain.png" 
               alt="SecondBrain Interface" 
@@ -210,7 +256,7 @@ export default function Home() {
                 </div>
                 <div className="absolute bottom-0 w-full p-6 bg-zinc-900/90 border-t border-zinc-800 backdrop-blur-md">
                    <div className="h-10 bg-black rounded-lg border border-zinc-700 flex items-center px-4 gap-3">
-                      <Link className="h-4 w-4 text-zinc-500" />
+                      <LinkIcon className="h-4 w-4 text-zinc-500" />
                       <div className="h-2 w-32 bg-zinc-700 rounded-full animate-pulse" />
                    </div>
                 </div>
