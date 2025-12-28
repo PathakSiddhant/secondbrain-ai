@@ -15,6 +15,8 @@ colorama==0.4.6
 dataclasses-json==0.6.7
 defusedxml==0.7.1
 distro==1.9.0
+docx2txt==0.9
+et_xmlfile==2.0.0
 fastapi==0.127.0
 filetype==1.2.0
 frozenlist==1.8.0
@@ -37,13 +39,16 @@ langchain-openai==1.1.6
 langchain-pinecone==0.2.13
 langchain-text-splitters==1.1.0
 langsmith==0.5.1
+lxml==6.0.2
 marshmallow==3.26.2
 multidict==6.7.0
 mypy_extensions==1.1.0
 numpy==2.4.0
 openai==2.14.0
+openpyxl==3.1.5
 orjson==3.11.5
 packaging==24.2
+pandas==2.3.3
 pinecone==7.3.0
 pinecone-client==6.0.0
 pinecone-plugin-assistant==1.8.0
@@ -56,9 +61,11 @@ pydantic-settings==2.12.0
 pydantic_core==2.41.5
 pypdf==6.5.0
 python-dateutil==2.9.0.post0
+python-docx==1.2.0
 python-dotenv==1.2.1
 python-multipart==0.0.21
 pytube==15.0.0
+pytz==2025.2
 PyYAML==6.0.3
 regex==2025.11.3
 requests==2.32.5
@@ -76,6 +83,7 @@ tqdm==4.67.1
 typing-inspect==0.9.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
+tzdata==2025.3
 urllib3==2.6.2
 uuid_utils==0.12.0
 uvicorn==0.40.0

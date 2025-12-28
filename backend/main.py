@@ -1,9 +1,9 @@
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import shutil
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-# Import new functions
+# 👇 Import all functions
 from rag import process_document, process_youtube, process_website, answer_query, clear_database
 
 app = FastAPI()
@@ -16,71 +16,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# Request Models
-class QueryRequest(BaseModel):
-    query: str
-
 class LinkRequest(BaseModel):
     url: str
-    type: str # 'youtube' or 'website'
+    type: str 
 
-@app.get("/")
-def read_root():
-    return {"message": "SecondBrain API is Running 🚀"}
+@app.post("/process-link")
+async def process_link_endpoint(request: LinkRequest):
+    try:
+        # Check type loosely to handle 'web' or 'website'
+        if request.type == "youtube":
+            result = process_youtube(request.url)
+        elif request.type in ["web", "website"]:
+            result = process_website(request.url)
+        else:
+            return {"status": "Error", "detail": "Invalid link type"}
+            
+        return {"status": "Processed Link 🔗", "detail": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 1. PDF UPLOAD
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
-        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        file_path = f"temp_{file.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        process_document(file_path)
-        return {"filename": file.filename, "status": "Processed PDF 📄"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ... baaki sab same rahega ...
-
-# 2. LINK PROCESSING (Updated)
-@app.post("/process-link")
-async def process_link(request: LinkRequest):
-    try:
-        result = "Unknown Error"
-        if request.type == "youtube":
-            result = process_youtube(request.url)
-        elif request.type == "website":
-            result = process_website(request.url)
+        # Process returns a Dict now: {status, content, type}
+        result = process_document(file_path)
+        
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Check if returned result is a dictionary and has success status
+        if isinstance(result, dict) and result.get("status") == "Success":
+            return {
+                "status": "Processed", 
+                "filename": file.filename, 
+                "content": result.get("content", ""), 
+                "type": result.get("type", "file")
+            }
         else:
-            raise HTTPException(status_code=400, detail="Invalid link type")
-
-        # Agar "Success" return hua tabhi 200 OK bhejo
-        if result == "Success":
-            return {"url": request.url, "status": "Processed Link 🔗"}
-        else:
-            # Warna actual error dikhao
-            raise HTTPException(status_code=500, detail=result)
+            # Extract error message
+            error_msg = result.get("content") if isinstance(result, dict) else str(result)
+            raise HTTPException(status_code=500, detail=f"Failed: {error_msg}")
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Cleanup if error occurs during save
+        if os.path.exists(f"temp_{file.filename}"):
+             os.remove(f"temp_{file.filename}")
+        raise HTTPException(status_code=500, detail=f"Server Error: {str(e)}")
 
-# ... baaki chat endpoint same rahega ...
-
-# 3. CHAT
 @app.post("/chat")
-async def chat_endpoint(request: QueryRequest):
-    try:
-        answer = answer_query(request.query)
-        return {"answer": answer}
-    except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Error generating answer")
+async def chat_endpoint(request: dict):
+    query = request.get("query")
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is missing")
     
-# 👇 NAYA ENDPOINT ADD KARO
+    response = answer_query(query)
+    return {"answer": response}
+
 @app.delete("/reset")
 async def reset_brain():
     success = clear_database()
