@@ -1,4 +1,4 @@
-# SidMini AI - Second Brain 🧠
+# SecondBrain AI - Second Brain 🧠
 
 An advanced RAG-based AI assistant that allows you to "Chat with your Data".
 

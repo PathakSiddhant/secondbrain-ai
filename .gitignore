@@ -3,6 +3,7 @@ backend/venv/
 __pycache__/
 *.pyc
 .env
+.env.local
 
 # MacOS/Windows junk
 .DS_Store
