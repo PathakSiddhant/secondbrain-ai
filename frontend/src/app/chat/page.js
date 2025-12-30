@@ -51,7 +51,7 @@ const LibrarySection = ({ title, icon: Icon, items, isOpen, onToggle, onSelectCh
         <div className="flex items-center gap-2.5">
            <Icon className={`h-4 w-4 ${activeChatId ? 'text-zinc-500' : accentColor}`} />
            <span className="text-xs font-bold uppercase tracking-widest opacity-80">{title}</span>
-           <span className="bg-zinc-900 text-zinc-600 text-[9px] px-1.5 py-0.5 rounded-full min-w-[1.5rem] text-center">{items.length}</span>
+           <span className="bg-zinc-900 text-zinc-600 text-[9px] px-1.5 py-0.5 rounded-full min-w-6 text-center">{items.length}</span>
         </div>
         {isOpen ? <ChevronDown className="h-3 w-3 opacity-50" /> : <ChevronRight className="h-3 w-3 opacity-50" />}
      </button>
@@ -242,12 +242,22 @@ export default function ChatPage() {
            <LibrarySection title="Web Links" icon={Globe} items={history.website} isOpen={openSections.website} onToggle={() => toggleSection('website')} onSelectChat={handleLoadChat} onMenuOpen={setActiveMenu} activeChatId={currentChatId} accentColor="text-emerald-500" />
         </div>
         
-        <div className="p-4 border-t border-zinc-900 bg-zinc-900/30">
-           <div className="flex items-center gap-3">
-              <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-8 w-8 ring-1 ring-zinc-700" } }}/>
-              <div className="flex flex-col"><span className="text-sm font-medium text-zinc-200 truncate max-w-30">{user?.fullName || "User"}</span><span className="text-[10px] text-zinc-500 uppercase tracking-wider">Pro Plan</span></div>
-           </div>
+<div className="p-4 border-t border-zinc-900 bg-zinc-900/30">
+    <div className="mb-3">
+        <Link href="/checkout">
+            <Button className="w-full bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold h-8 shadow-lg shadow-indigo-500/20 border-0">
+                <Zap className="h-3 w-3 mr-2 fill-current" /> UPGRADE TO PRO
+            </Button>
+        </Link>
+    </div>
+    <div className="flex items-center gap-3">
+        <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-8 w-8 ring-1 ring-zinc-700" } }}/>
+        <div className="flex flex-col">
+            <span className="text-sm font-medium text-zinc-200 truncate max-w-30">{user?.fullName || "User"}</span>
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Free Tier</span>
         </div>
+    </div>
+</div>
       </div>
 
       {/* --- MAIN AREA --- */}

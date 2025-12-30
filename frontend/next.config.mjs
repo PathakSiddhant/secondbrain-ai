@@ -5,8 +5,12 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'api.dicebear.com',
-        port: '',
-        pathname: '/7.x/**', // Ye specific version allow karta hai
+        pathname: '/7.x/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+        pathname: '/**',
       },
     ],
   },

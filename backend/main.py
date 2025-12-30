@@ -7,7 +7,7 @@ from typing import Optional
 from rag import (
     process_document, process_youtube, process_website, answer_query, clear_database,
     create_chat_session, save_message, get_user_chats, get_chat_details, 
-    delete_chat_session, rename_chat_session # 👈 Added Import
+    delete_chat_session, rename_chat_session, get_dashboard_stats # 👈 Added this
 )
 
 app = FastAPI()
@@ -98,6 +98,10 @@ async def rename_chat(chat_id: str, request: RenameRequest):
     if rename_chat_session(chat_id, request.new_title):
         return {"status": "Updated", "title": request.new_title}
     raise HTTPException(status_code=500, detail="Rename failed")
+
+@app.get("/dashboard/{user_id}")
+async def get_dashboard(user_id: str):
+    return get_dashboard_stats(user_id)
 
 @app.delete("/reset")
 async def reset_brain():

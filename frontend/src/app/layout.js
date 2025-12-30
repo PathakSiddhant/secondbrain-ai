@@ -1,20 +1,25 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ClerkProvider } from '@clerk/nextjs' // 👈 Import This
+import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/components/theme-provider"; 
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: "SecondBrain AI",
-  description: "Your Second Brain",
+  description: "Your external memory for the AI age.",
 };
 
 export default function RootLayout({ children }) {
   return (
-    // 👇 Wrap HTML with ClerkProvider
     <ClerkProvider>
-      <html lang="en">
-        <body className={inter.className}>{children}</body>
+      <html lang="en" suppressHydrationWarning>
+        <body className={inter.className}>
+          {/* 👇 Wrap everything in ThemeProvider */}
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            {children}
+          </ThemeProvider>
+        </body>
       </html>
     </ClerkProvider>
   );

@@ -26,7 +26,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 print("🔹 Initializing AI Models & Database...")
 embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 vector_store = PineconeVectorStore(index_name=PINECONE_INDEX_NAME, embedding=embeddings)
-llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0.3)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -72,6 +72,42 @@ def rename_chat_session(chat_id, new_title):
     except Exception as e:
         print(f"❌ Rename Error: {e}")
         return False
+
+
+# ... (Purane functions ke neeche add kar)
+
+# 🔥 NEW: Dashboard Stats
+def get_dashboard_stats(user_id):
+    try:
+        # 1. Fetch ALL chats (lightweight query)
+        response = supabase.table("chats").select("id, title, source_type, created_at").eq("user_id", user_id).order("created_at", desc=True).execute()
+        chats = response.data
+        
+        # 2. Calculate Counts
+        total_chats = len(chats)
+        youtube_count = len([c for c in chats if c['source_type'] == 'youtube'])
+        # PDF, Word, Excel, Code sab 'documents' hain
+        doc_count = len([c for c in chats if c['source_type'] in ['pdf', 'word', 'excel', 'csv', 'code', 'file']]) 
+        web_count = len([c for c in chats if c['source_type'] in ['web', 'website']])
+        
+        # 3. Get Recent Activity (Top 5)
+        recent_activity = chats[:5]
+        
+        return {
+            "stats": {
+                "total": total_chats,
+                "youtube": youtube_count,
+                "documents": doc_count,
+                "websites": web_count
+            },
+            "recent_activity": recent_activity
+        }
+    except Exception as e:
+        print(f"❌ Dashboard Error: {e}")
+        return {
+            "stats": { "total": 0, "youtube": 0, "documents": 0, "websites": 0 },
+            "recent_activity": []
+        }
 
 # --- PROCESSORS (With Title Extraction) ---
 
