@@ -262,7 +262,7 @@ const Typewriter = ({ words }) => {
   }, [subIndex, index, reverse, words]);
 
   return (
-    <span className="inline-block min-w-[280px] text-left">
+    <span className="inline-block min-w-70 text-left">
       {words[index].substring(0, subIndex)}
       <span className="animate-blink">|</span>
     </span>
@@ -629,7 +629,7 @@ export default function Home() {
         ref={heroRef}
         className="pt-32 pb-20 px-6 relative overflow-hidden bg-grid min-h-[90vh] flex items-center"
       >
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] -z-10 animate-pulse-slow" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-250 h-150 bg-indigo-600/10 rounded-full blur-[120px] -z-10 animate-pulse-slow" />
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <motion.div
             style={{ y: heroY, opacity: heroOpacity }}
@@ -651,10 +651,10 @@ export default function Home() {
               className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] text-zinc-900 dark:text-white"
             >
               Chat with your <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 animate-gradient-x h-[1.2em] inline-block">
+              <span className="text-transparent bg-clip-text bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400 animate-gradient-x h-[1.2em] inline-block">
                 <Typewriter
                   words={[
-                    "PDF Documents.",
+                    "Documents.",
                     "YouTube Videos.",
                     "Web Articles.",
                     "Second Brain.",
@@ -734,7 +734,7 @@ export default function Home() {
             className="relative z-10 hidden lg:block"
           >
             <div className="relative animate-float">
-              <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur-3xl opacity-30 animate-pulse-slow"></div>
+              <div className="absolute -inset-4 bg-linear-to-r from-indigo-500 to-purple-600 rounded-2xl blur-3xl opacity-30 animate-pulse-slow"></div>
               <Image
                 src="/images/herobrain.png"
                 alt="App Dark"
@@ -824,8 +824,8 @@ export default function Home() {
           </p>
         </div>
         <div className="relative w-full">
-          <div className="absolute left-0 top-0 bottom-0 w-40 bg-gradient-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-40 bg-gradient-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none" />
+          <div className="absolute left-0 top-0 bottom-0 w-40 bg-linear-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-40 bg-linear-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none" />
           <div className="flex w-max animate-scroll gap-24 px-10">
             {[...STARTUPS, ...STARTUPS, ...STARTUPS, ...STARTUPS].map(
               (logo, index) => (
@@ -896,7 +896,7 @@ export default function Home() {
                       repeat: Infinity,
                       ease: "linear",
                     }}
-                    className="absolute left-0 w-full h-8 bg-gradient-to-b from-transparent via-indigo-500/20 to-transparent border-b border-indigo-500/50 z-10"
+                    className="absolute left-0 w-full h-8 bg-linear-to-b from-transparent via-indigo-500/20 to-transparent border-b border-indigo-500/50 z-10"
                   />
                 </div>
               </TiltCard>
@@ -1051,7 +1051,7 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4 }}
-              className="h-[450px] w-full"
+              className="h-112.5 w-full"
             >
               {USE_CASES[activeTab].visual}
             </motion.div>
@@ -1127,8 +1127,8 @@ export default function Home() {
           </div>
 
           {/* Right: Floating Cards Stack (THE "FINAL STATE") */}
-          <div className="relative h-[500px] w-full flex items-center justify-center perspective-1000">
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-purple-500/10 blur-[120px] rounded-full"></div>
+          <div className="relative h-125 w-full flex items-center justify-center perspective-1000">
+            <div className="absolute inset-0 bg-linear-to-tr from-indigo-500/10 to-purple-500/10 blur-[120px] rounded-full"></div>
 
             {/* 1. PDF Card (Back) */}
             <motion.div
@@ -1328,7 +1328,7 @@ export default function Home() {
               </Link>
             </div>
             {/* PRO */}
-            <div className="p-8 rounded-3xl border border-indigo-500 bg-gradient-to-b from-indigo-50 to-transparent dark:from-indigo-900/20 backdrop-blur-md relative scale-105 shadow-2xl">
+            <div className="p-8 rounded-3xl border border-indigo-500 bg-linear-to-b from-indigo-50 to-transparent dark:from-indigo-900/20 backdrop-blur-md relative scale-105 shadow-2xl">
               <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl">
                 POPULAR
               </div>
@@ -1431,7 +1431,7 @@ export default function Home() {
 
       {/* ================= FINAL CTA & CONTACT ================= */}
       <section className="py-24 px-6 bg-white dark:bg-[#020202] border-t border-zinc-200 dark:border-white/5">
-        <div className="max-w-5xl mx-auto bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-16 text-center relative overflow-hidden shadow-2xl mb-24">
+        <div className="max-w-5xl mx-auto bg-linear-to-r from-indigo-600 to-purple-600 rounded-3xl p-16 text-center relative overflow-hidden shadow-2xl mb-24">
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6 relative z-10 text-white">
             Ready to upgrade your mind?
           </h2>
