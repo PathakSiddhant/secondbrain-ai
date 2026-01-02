@@ -14,11 +14,12 @@ import {
 
 const MENU_ITEMS = [
   { name: "Home", icon: LayoutGrid, path: "/dashboard" },
-  { name: "My Brain", icon: Files, path: "/dashboard/library" },
-  { name: "Chat", icon: MessageSquare, path: "/dashboard/brain" }, 
+  { name: "Library", icon: Files, path: "/dashboard/library" },
+  // 🔴 OLD: path: "/dashboard/chat/new"
+  // 🟢 NEW: Direct path to standalone chat
+  { name: "Chat", icon: MessageSquare, path: "/chat/new" }, 
   { name: "Settings", icon: Settings, path: "/dashboard/settings" },
 ];
-
 export default function Sidebar() {
   const pathname = usePathname();
 

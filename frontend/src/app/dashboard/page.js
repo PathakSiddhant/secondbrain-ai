@@ -36,11 +36,11 @@ export default function DashboardHome() {
               Your Second Brain is active.
             </p>
         </div>
-        <Link href="/dashboard/library">
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all">
-                <Plus className="h-4 w-4" /> New Entry
-            </button>
-        </Link>
+<Link href="/chat/new"> {/* 👈 Update this path */}
+    <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all">
+        <Plus className="h-4 w-4" /> New Entry
+    </button>
+</Link>
       </div>
 
       {/* 🔥 THE REAL KNOWLEDGE GRAPH */}

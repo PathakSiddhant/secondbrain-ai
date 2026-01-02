@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -7,7 +7,7 @@ from typing import Optional
 from rag import (
     process_document, process_youtube, process_website, answer_query, clear_database,
     create_chat_session, save_message, get_user_chats, get_chat_details, 
-    delete_chat_session, rename_chat_session, get_dashboard_stats # 👈 Added this
+    delete_chat_session, rename_chat_session, get_dashboard_stats, get_knowledge_graph
 )
 
 app = FastAPI()
@@ -23,6 +23,7 @@ app.add_middleware(
 class LinkRequest(BaseModel):
     url: str
     type: str 
+    user_id: str
 
 class ChatRequest(BaseModel):
     query: str
@@ -32,33 +33,52 @@ class ChatRequest(BaseModel):
     source_title: str = "New Chat" 
     source_url: Optional[str] = None
 
-# 👇 NEW: Rename Request Model
 class RenameRequest(BaseModel):
     new_title: str
 
 @app.post("/process-link")
 async def process_link_endpoint(request: LinkRequest):
     try:
-        # Logic update to handle return format
         if request.type == "youtube": result = process_youtube(request.url)
         elif request.type in ["web", "website"]: result = process_website(request.url)
-        else: return {"status": "Error", "detail": "Invalid link type"}
+        else: return {"status": "Error", "detail": "Invalid Type"}
         
-        # Check if result has status key (new logic)
-        if isinstance(result, dict) and result.get("status") == "Error":
+        if result.get("status") == "Error":
              raise HTTPException(status_code=500, detail=result.get("detail"))
 
-        return {"status": "Processed Link 🔗", "detail": result} # Result contains 'title'
+        chat_id = create_chat_session(
+            request.user_id, 
+            result.get("title", "Link"), 
+            request.type, 
+            request.url, 
+            content=result.get("content")
+        )
+        
+        if not chat_id: raise HTTPException(status_code=500, detail="Database Save Failed")
+        return {"status": "Saved", "chat_id": chat_id, "title": result.get("title")}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    file_path = f"temp_{file.filename}"
+async def upload_file(user_id: str = Form(...), file: UploadFile = File(...)):
+    unique_filename = f"{user_id}_{file.filename}"
+    file_path = f"temp_{unique_filename}"
     try:
         with open(file_path, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
-        result = process_document(file_path)
-        if isinstance(result, dict) and result.get("status") == "Success":
-            return {"status": "Processed", "filename": file.filename, "content": result.get("content", ""), "type": result.get("type", "file")}
+        
+        result = process_document(file_path, unique_filename)
+        
+        if result.get("status") == "Success":
+            chat_id = create_chat_session(
+                user_id, 
+                file.filename, 
+                result.get("type"), 
+                result.get("url"), 
+                content=result.get("content")
+            )
+            
+            if not chat_id: raise HTTPException(status_code=500, detail="DB Save Failed")
+            
+            return {"status": "Processed", "chat_id": chat_id, "type": result.get("type")}
         else:
             raise HTTPException(status_code=500, detail=result.get("content"))
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -69,39 +89,43 @@ async def upload_file(file: UploadFile = File(...)):
 async def chat_endpoint(request: ChatRequest):
     try:
         current_chat_id = request.chat_id
+        if not current_chat_id and request.source_type == "general":
+            return {"answer": answer_query(request.query), "chat_id": None}
+
         if not current_chat_id:
-            current_chat_id = create_chat_session(
-                request.user_id, request.source_title, request.source_type, request.source_url
-            )
+            current_chat_id = create_chat_session(request.user_id, request.source_title, request.source_type, request.source_url)
+        
         save_message(current_chat_id, "user", request.query)
         ai_response = answer_query(request.query)
         save_message(current_chat_id, "ai", ai_response)
+        
         return {"answer": ai_response, "chat_id": current_chat_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/history/{user_id}")
-async def get_history(user_id: str):
-    return {"chats": get_user_chats(user_id)}
+async def get_history(user_id: str): return {"chats": get_user_chats(user_id)}
 
 @app.get("/chat/{chat_id}")
 async def get_chat(chat_id: str):
-    return get_chat_details(chat_id)
+    data = get_chat_details(chat_id)
+    if not data: return {"messages": [], "metadata": {}}
+    return data
 
 @app.delete("/chat/{chat_id}")
 async def delete_chat(chat_id: str):
     if delete_chat_session(chat_id): return {"status": "Deleted"}
     raise HTTPException(status_code=500, detail="Failed")
 
-# 🔥 NEW: Patch Endpoint for Rename
 @app.patch("/chat/{chat_id}")
 async def rename_chat(chat_id: str, request: RenameRequest):
-    if rename_chat_session(chat_id, request.new_title):
-        return {"status": "Updated", "title": request.new_title}
-    raise HTTPException(status_code=500, detail="Rename failed")
+    if rename_chat_session(chat_id, request.new_title): return {"status": "Updated"}
+    raise HTTPException(status_code=500, detail="Failed")
 
 @app.get("/dashboard/{user_id}")
-async def get_dashboard(user_id: str):
-    return get_dashboard_stats(user_id)
+async def get_dashboard(user_id: str): return get_dashboard_stats(user_id)
+
+@app.get("/graph/{user_id}")
+async def get_graph(user_id: str): return get_knowledge_graph(user_id)
 
 @app.delete("/reset")
 async def reset_brain():

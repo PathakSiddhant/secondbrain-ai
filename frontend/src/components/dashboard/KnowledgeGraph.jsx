@@ -76,7 +76,7 @@ export default function KnowledgeGraph({ userId }) {
       {/* Overlay Title */}
       <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 pointer-events-none">
         <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">
-          Neural Network • {data.nodes.length > 0 ? data.nodes.length - 1 : 0} Memories
+          Neural Network • {data?.nodes?.length > 0 ? data.nodes.length - 1 : 0} Memories
         </span>
       </div>
     </div>

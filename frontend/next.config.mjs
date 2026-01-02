@@ -1,18 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'api.dicebear.com',
-        pathname: '/7.x/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
-        pathname: '/**',
-      },
-    ],
+  // Agar koi redirects() function hai toh usse hata de ya empty return kar
+  async redirects() {
+    return []; 
   },
 };
 

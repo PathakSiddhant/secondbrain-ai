@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 import pandas as pd
 from dotenv import load_dotenv
@@ -17,6 +18,7 @@ from supabase import create_client, Client
 
 load_dotenv()
 
+# Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
@@ -30,184 +32,205 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0.3)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- DATABASE FUNCTIONS ---
-
-def create_chat_session(user_id, title, source_type, source_url=None):
+# --- STORAGE ---
+def upload_file_to_storage(file_path, file_name):
+    """Uploads file and returns DIRECT Public URL."""
     try:
-        data = { "user_id": user_id, "title": title, "source_type": source_type, "source_url": source_url }
-        response = supabase.table("chats").insert(data).execute()
-        return response.data[0]['id']
+        # Sanitize name
+        safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file_name)
+        with open(file_path, "rb") as f:
+            supabase.storage.from_("documents").upload(safe_name, f, {"content-type": "auto", "upsert": "true"})
+        
+        # Construct Public URL manually to ensure it works
+        project_id = SUPABASE_URL.split("//")[1].split(".")[0]
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/documents/{safe_name}"
+        return public_url
     except Exception as e:
-        print(f"❌ DB Create Error: {e}")
+        print(f"⚠️ Storage Error: {e}")
         return None
+
+# --- DATABASE ---
+def create_chat_session(user_id, title, source_type, source_url=None, content=None):
+    try:
+        data = { "user_id": user_id, "title": title, "source_type": source_type, "source_url": source_url, "content": content }
+        response = supabase.table("chats").insert(data).execute()
+        if response.data: return response.data[0]['id']
+        return None
+    except Exception as e: print(f"❌ DB Error: {e}"); return None
 
 def save_message(chat_id, role, content):
     try: supabase.table("messages").insert({"chat_id": chat_id, "role": role, "content": content}).execute()
-    except Exception as e: print(f"❌ DB Save Msg Error: {e}")
+    except: pass
 
 def get_user_chats(user_id):
     try:
         response = supabase.table("chats").select("id, title, source_type, source_url, created_at").eq("user_id", user_id).order("created_at", desc=True).execute()
         return response.data
-    except Exception as e: return []
+    except: return []
 
 def get_chat_details(chat_id):
     try:
-        chat_meta = supabase.table("chats").select("*").eq("id", chat_id).single().execute()
-        msgs = supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=True).execute()
-        return { "metadata": chat_meta.data, "messages": msgs.data[::-1] }
-    except Exception as e: return None
+        chat_query = supabase.table("chats").select("*").eq("id", chat_id).execute()
+        if not chat_query.data: return None
+        chat_meta = chat_query.data[0]
+        msgs_query = supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=True).execute()
+        return { "metadata": chat_meta, "messages": msgs_query.data[::-1] if msgs_query.data else [] }
+    except: return None
 
 def delete_chat_session(chat_id):
     try:
+        supabase.table("messages").delete().eq("chat_id", chat_id).execute()
         supabase.table("chats").delete().eq("id", chat_id).execute()
         return True
     except: return False
 
-# 🔥 NEW: RENAME FUNCTION
 def rename_chat_session(chat_id, new_title):
     try:
         supabase.table("chats").update({"title": new_title}).eq("id", chat_id).execute()
         return True
-    except Exception as e:
-        print(f"❌ Rename Error: {e}")
-        return False
+    except: return False
 
-
-# ... (Purane functions ke neeche add kar)
-
-# 🔥 NEW: Dashboard Stats
 def get_dashboard_stats(user_id):
     try:
-        # 1. Fetch ALL chats (lightweight query)
-        response = supabase.table("chats").select("id, title, source_type, created_at").eq("user_id", user_id).order("created_at", desc=True).execute()
+        response = supabase.table("chats").select("id, source_type").eq("user_id", user_id).execute()
         chats = response.data
-        
-        # 2. Calculate Counts
-        total_chats = len(chats)
-        youtube_count = len([c for c in chats if c['source_type'] == 'youtube'])
-        # PDF, Word, Excel, Code sab 'documents' hain
-        doc_count = len([c for c in chats if c['source_type'] in ['pdf', 'word', 'excel', 'csv', 'code', 'file']]) 
-        web_count = len([c for c in chats if c['source_type'] in ['web', 'website']])
-        
-        # 3. Get Recent Activity (Top 5)
-        recent_activity = chats[:5]
-        
         return {
             "stats": {
-                "total": total_chats,
-                "youtube": youtube_count,
-                "documents": doc_count,
-                "websites": web_count
+                "total": len(chats),
+                "youtube": len([c for c in chats if c['source_type'] == 'youtube']),
+                "documents": len([c for c in chats if c['source_type'] in ['pdf', 'word', 'excel', 'file']]),
+                "websites": len([c for c in chats if c['source_type'] in ['web', 'website']])
             },
-            "recent_activity": recent_activity
-        }
-    except Exception as e:
-        print(f"❌ Dashboard Error: {e}")
-        return {
-            "stats": { "total": 0, "youtube": 0, "documents": 0, "websites": 0 },
             "recent_activity": []
         }
+    except: return {"stats": {"total":0}, "recent_activity": []}
 
-# --- PROCESSORS (With Title Extraction) ---
+def get_knowledge_graph(user_id):
+    try:
+        response = supabase.table("chats").select("id, title, source_type").eq("user_id", user_id).execute()
+        chats = response.data
+        nodes = [{"id": "brain", "name": "Brain", "val": 20, "color": "#6366f1"}]
+        links = []
+        for chat in chats:
+            color = "#ef4444" if chat['source_type'] == 'youtube' else "#3b82f6"
+            nodes.append({"id": chat['id'], "name": chat['title'], "val": 10, "color": color})
+            links.append({"source": "brain", "target": chat['id']})
+        return {"nodes": nodes, "links": links}
+    except: return {"nodes": [], "links": []}
 
+# --- PROCESSORS ---
 def split_and_store(docs):
     try:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         splits = text_splitter.split_documents(docs)
-        if not splits: return "No content."
+        if not splits: return "No content extracted."
         vector_store.add_documents(splits)
         return "Success"
     except Exception as e: return f"Pinecone Error: {str(e)}"
 
-def process_document(file_path):
-    # (Same as before)
-    print(f"📄 Processing File: {file_path}")
+def process_document(file_path, original_filename):
+    print(f"📄 Processing: {file_path}")
     try:
+        # 1. Upload
+        public_url = upload_file_to_storage(file_path, original_filename)
+        
+        # 2. Extract
         loader, doc_type, docs = None, "text", []
-        if file_path.lower().endswith(".pdf"): loader = PyPDFLoader(file_path); doc_type = "pdf"; docs = loader.load()
-        elif file_path.lower().endswith(".docx"): loader = Docx2txtLoader(file_path); doc_type = "word"; docs = loader.load()
-        elif file_path.lower().endswith(".xlsx") or file_path.lower().endswith(".xls"):
-            df = pd.read_excel(file_path); text = df.to_string(index=False); doc_type = "excel"
-            docs = [Document(page_content=text, metadata={"source": file_path, "type": "excel"})]
-        elif file_path.lower().endswith(".csv"):
-            df = pd.read_csv(file_path); text = df.to_string(index=False); doc_type = "csv"
-            docs = [Document(page_content=text, metadata={"source": file_path, "type": "csv"})]
-        else: loader = TextLoader(file_path, encoding='utf-8', autodetect_encoding=True); doc_type = "code"; docs = loader.load()
-
-        if not docs: return {"status": "Error", "content": "Empty file"}
-        result = split_and_store(docs)
-        if result == "Success":
-            content_preview = "\n\n".join([d.page_content for d in docs])
-            return {"status": "Success", "content": content_preview, "type": doc_type}
-        return {"status": "Error", "content": result}
+        
+        if file_path.endswith(".pdf"): loader = PyPDFLoader(file_path); doc_type = "pdf"
+        elif file_path.endswith(".docx"): loader = Docx2txtLoader(file_path); doc_type = "word"
+        elif file_path.endswith((".xlsx", ".xls")):
+            doc_type = "excel"
+            try:
+                xls = pd.ExcelFile(file_path)
+                full_text = ""
+                for sheet in xls.sheet_names:
+                    df = pd.read_excel(file_path, sheet_name=sheet)
+                    full_text += f"\n--- {sheet} ---\n" + df.to_string(index=False)
+                docs = [Document(page_content=full_text, metadata={"type": "excel"})]
+            except: pass
+        elif file_path.endswith(".csv"):
+            doc_type = "csv"
+            try:
+                df = pd.read_csv(file_path)
+                docs = [Document(page_content=df.to_string(index=False), metadata={"type": "csv"})]
+            except: pass
+        elif file_path.endswith((".txt", ".md", ".py", ".js")): 
+            loader = TextLoader(file_path, encoding='utf-8'); doc_type = "code"
+        
+        if loader: 
+            try: docs = loader.load()
+            except: pass 
+        
+        if not docs: return {"status": "Error", "content": "File is empty or unreadable."}
+        
+        split_and_store(docs)
+        content_preview = "\n\n".join([d.page_content for d in docs])
+        
+        return {"status": "Success", "content": content_preview, "type": doc_type, "url": public_url}
     except Exception as e: return {"status": "Error", "content": str(e)}
 
 def process_youtube(video_url):
-    print(f"🎥 YouTube: {video_url}")
     try:
-        # 1. Get Video ID
-        if "youtu.be" in video_url: vid = video_url.split("/")[-1].split("?")[0]
-        elif "v=" in video_url: vid = video_url.split("v=")[-1].split("&")[0]
-        else: return {"status": "Error", "detail": "Invalid URL"}
-
-        # 2. 🔥 Fetch Real Title
-        video_title = "YouTube Video"
+        # Get ID
+        regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
+        match = re.search(regex, video_url)
+        if not match: return {"status": "Error", "detail": "Invalid YouTube URL"}
+        vid = match.group(1)
+        
+        # Fetch Metadata (Title)
+        title = "YouTube Video"
         try:
-            r = requests.get(video_url)
+            r = requests.get(f"https://www.youtube.com/watch?v={vid}")
             soup = BeautifulSoup(r.text, 'html.parser')
-            title_tag = soup.find("meta", property="og:title")
-            if title_tag: video_title = title_tag["content"]
-            else: video_title = soup.title.string.replace(" - YouTube", "")
+            title = soup.title.string.replace(" - YouTube", "")
         except: pass
 
-        # 3. Get Transcript
+        # 🔥 NOTEGPT LOGIC: Try EVERY available transcript
+        text = ""
         try:
-            yt = YouTubeTranscriptApi()
-            try: tx = yt.list_transcripts(vid).find_transcript(['en', 'hi'])
-            except: tx = next(iter(yt.list_transcripts(vid)))
-            data = tx.fetch()
-            text = " ".join([i['text'] for i in data])
-        except Exception as e:
-            # Fallback
+            transcript_list = YouTubeTranscriptApi.list_transcripts(vid)
+            # Try to get English or Hindi, or translate
             try:
-                data = YouTubeTranscriptApi.get_transcript(vid)
-                text = " ".join([i['text'] for i in data])
-            except: return {"status": "Error", "detail": "No transcript found"}
+                transcript = transcript_list.find_transcript(['en', 'hi'])
+            except:
+                # If not found, get any and translate to english
+                transcript = transcript_list.find_generated_transcript(['en', 'hi'])
+            
+            transcript_data = transcript.fetch()
+            text = " ".join([i['text'] for i in transcript_data])
+        except Exception as e:
+            print(f"⚠️ Transcript Failed: {e}")
+            text = f"Video Title: {title}. (Transcript not available via API. Answer based on general knowledge about this topic.)"
 
         doc = Document(page_content=text, metadata={"source": video_url, "type": "youtube"})
         split_and_store([doc])
         
-        # Return Title!
-        return {"status": "Success", "title": video_title}
-        
+        return {"status": "Success", "title": title, "content": text}
     except Exception as e: return {"status": "Error", "detail": str(e)}
 
 def process_website(url):
-    print(f"🌐 Website: {url}")
     try:
-        headers = { "User-Agent": "Mozilla/5.0" }
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code != 200: return {"status": "Error", "detail": "Blocked"}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200: return {"status": "Error", "detail": "Invalid Link"}
 
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # 🔥 Fetch Real Title
-        page_title = soup.title.string.strip() if soup.title else "Website Source"
-        if len(page_title) > 50: page_title = page_title[:50] + "..."
-
-        for s in soup(["script", "style", "nav", "footer"]): s.decompose()
+        soup = BeautifulSoup(r.text, 'html.parser')
+        for s in soup(["script", "style"]): s.decompose()
         text = soup.get_text(separator="\n").strip()
-        
-        if len(text) < 50: return {"status": "Error", "detail": "Content too short"}
+        title = soup.title.string.strip() if soup.title else "Website"
 
         doc = Document(page_content=text, metadata={"source": url, "type": "web"})
         split_and_store([doc])
-        
-        # Return Title!
-        return {"status": "Success", "title": page_title}
-
+        return {"status": "Success", "title": title, "content": text}
     except Exception as e: return {"status": "Error", "detail": str(e)}
+
+def answer_query(question):
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+    template = """You are a helpful AI assistant. Answer based on context:\n{context}\nQuestion: {question}"""
+    prompt = ChatPromptTemplate.from_template(template)
+    chain = ({"context": retriever, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser())
+    return chain.invoke(question)
 
 def clear_database():
     try:
@@ -216,66 +239,3 @@ def clear_database():
         index.delete(delete_all=True)
         return True
     except: return False
-
-# --- 🧠 CHAT LOGIC (EXACTLY YOUR PREFERRED TEMPLATE) ---
-def answer_query(question):
-    print(f"🤔 Thinking about: {question}")
-    
-    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-
-    # 👇 SAME TEMPLATE AS YOU REQUESTED
-    template = """
-    You are a highly skilled AI assistant known for producing **clear, elegant, and visually pleasing answers**.
-
-    Your goal is to deliver responses that feel:
-    - ✨ Professionally written
-    - 🧠 Easy to understand
-    - 🎯 Well-structured and engaging
-
-    -------------------------------
-    ### 🔒 FORMATTING RULES (VERY IMPORTANT)
-    1. Use **Markdown formatting** properly.
-    2. Use `###` for section headings.
-    3. Use bullet points (`-`) instead of long paragraphs.
-    4. Keep sentences **short, clean, and readable**.
-    5. Add **bold highlights** for key ideas.
-    6. Leave a **blank line between sections and bullet points**.
-    7. Avoid unnecessary filler or robotic phrasing.
-
-    -------------------------------
-    ### 🧱 RESPONSE STRUCTURE (MANDATORY)
-
-    ### 🔹 Title
-    (A clear, attractive title related to the question)
-
-    ### 🔹 Key Explanation
-    - Explain the concept in **simple, friendly language**
-    - Break ideas into **digestible bullets**
-    - Use examples if helpful
-
-    ### 🔹 Key Takeaways
-    - 2–4 concise bullet points summarizing the answer
-
-    ### 🔹 Final Thought
-    - End with a short, confident, helpful conclusion
-
-    -------------------------------
-    ### Context:
-    {context}
-
-    ### User Question:
-    {question}
-
-    ### Answer:
-    """
-
-    prompt = ChatPromptTemplate.from_template(template)
-
-    chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-
-    return chain.invoke(question)
