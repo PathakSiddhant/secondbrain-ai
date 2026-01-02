@@ -41,30 +41,21 @@ def upload_file_to_storage(file_path, file_name):
         with open(file_path, "rb") as f:
             supabase.storage.from_("documents").upload(safe_name, f, {"content-type": "auto", "upsert": "true"})
         
-        # Construct Public URL manually
+        # Construct Public URL
         public_url = f"{SUPABASE_URL}/storage/v1/object/public/documents/{safe_name}"
         return public_url
     except Exception as e:
-        print(f"⚠️ Storage Error (Bucket might be missing): {e}")
+        print(f"⚠️ Storage Error: {e}")
         return None
 
 # --- DATABASE ---
 def create_chat_session(user_id, title, source_type, source_url=None, content=None):
     try:
-        # Ensure content is not None for text fields if possible, or handle in DB
-        data = { 
-            "user_id": user_id, 
-            "title": title, 
-            "source_type": source_type, 
-            "source_url": source_url, 
-            "content": content if content else "No content extracted." 
-        }
+        data = { "user_id": user_id, "title": title, "source_type": source_type, "source_url": source_url, "content": content }
         response = supabase.table("chats").insert(data).execute()
         if response.data: return response.data[0]['id']
         return None
-    except Exception as e: 
-        print(f"❌ DB Create Error: {e}")
-        return None
+    except Exception as e: print(f"❌ DB Error: {e}"); return None
 
 def save_message(chat_id, role, content):
     try: supabase.table("messages").insert({"chat_id": chat_id, "role": role, "content": content}).execute()
@@ -126,14 +117,6 @@ def get_knowledge_graph(user_id):
         return {"nodes": nodes, "links": links}
     except: return {"nodes": [], "links": []}
 
-def clear_database():
-    try:
-        pc = Pinecone(api_key=PINECONE_API_KEY)
-        index = pc.Index(PINECONE_INDEX_NAME)
-        index.delete(delete_all=True)
-        return True
-    except: return False
-
 # --- PROCESSORS ---
 def split_and_store(docs):
     try:
@@ -147,24 +130,25 @@ def split_and_store(docs):
 def process_document(file_path, original_filename):
     print(f"📄 Processing: {file_path}")
     try:
-        # 1. Upload to storage (Failsafe)
+        # 1. Upload to storage
         public_url = upload_file_to_storage(file_path, original_filename)
         
         # 2. Extract content
         loader, doc_type, docs = None, "file", []
         
-        if file_path.endswith(".pdf"): loader = PyPDFLoader(file_path); doc_type = "pdf"
-        elif file_path.endswith(".docx"): loader = Docx2txtLoader(file_path); doc_type = "word"
+        if file_path.endswith(".pdf"): 
+            loader = PyPDFLoader(file_path); doc_type = "pdf"
+        elif file_path.endswith(".docx"): 
+            loader = Docx2txtLoader(file_path); doc_type = "word"
         elif file_path.endswith((".xlsx", ".xls")):
             doc_type = "excel"
             try:
-                # Fallback to simple pandas if openpyxl fails
-                xls = pd.ExcelFile(file_path)
+                xls = pd.ExcelFile(file_path, engine='openpyxl')
                 full_text = ""
                 for sheet in xls.sheet_names:
-                    df = pd.read_excel(file_path, sheet_name=sheet)
+                    df = pd.read_excel(file_path, sheet_name=sheet, engine='openpyxl')
                     full_text += f"\n\n=== Sheet: {sheet} ===\n" + df.to_string(index=False)
-                docs = [Document(page_content=full_text, metadata={"type": "excel"})]
+                docs = [Document(page_content=full_text, metadata={"type": "excel", "filename": original_filename})]
             except Exception as e:
                 print(f"Excel error: {e}")
                 return {"status": "Error", "content": "Failed to read Excel file"}
@@ -173,22 +157,22 @@ def process_document(file_path, original_filename):
             try:
                 df = pd.read_csv(file_path)
                 content = "CSV Data:\n\n" + df.to_string(index=False)
-                docs = [Document(page_content=content, metadata={"type": "csv"})]
-            except: pass
+                docs = [Document(page_content=content, metadata={"type": "csv", "filename": original_filename})]
+            except Exception as e: return {"status": "Error", "content": "Failed to read CSV file"}
         elif file_path.endswith((".txt", ".md", ".py", ".js", ".json", ".html", ".css")): 
             loader = TextLoader(file_path, encoding='utf-8')
             doc_type = "code" if file_path.endswith((".py", ".js", ".html", ".css")) else "text"
         
         if loader: 
             try: docs = loader.load()
-            except: pass 
+            except Exception as e: return {"status": "Error", "content": f"Failed to load file: {str(e)}"}
         
         if not docs: return {"status": "Error", "content": "File is empty or unreadable."}
         
+        # Store in vector database
         split_and_store(docs)
         
-        # Return truncated content for DB to avoid size limits if any
-        content_preview = "\n\n".join([d.page_content[:10000] for d in docs]) 
+        content_preview = "\n\n".join([d.page_content[:4000] for d in docs]) 
         
         return {
             "status": "Success", 
@@ -199,80 +183,108 @@ def process_document(file_path, original_filename):
     except Exception as e: return {"status": "Error", "content": str(e)}
 
 def process_youtube(video_url):
-    """Failsafe YouTube Processing"""
+    """NoteGPT Style Processing: Tries everything to get content."""
     try:
-        # Extract Video ID
         regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
         match = re.search(regex, video_url)
         if not match: return {"status": "Error", "detail": "Invalid YouTube URL"}
         vid = match.group(1)
         
+        # Fetch Metadata
         title = "YouTube Video"
+        description = ""
         try:
-            r = requests.get(f"https://www.youtube.com/watch?v={vid}")
+            r = requests.get(f"https://www.youtube.com/watch?v={vid}", timeout=10)
             soup = BeautifulSoup(r.text, 'html.parser')
-            title = soup.title.string.replace(" - YouTube", "")
+            if soup.title: title = soup.title.string.replace(" - YouTube", "").strip()
+            desc_tag = soup.find('meta', property='og:description')
+            if desc_tag: description = desc_tag.get('content', '')
         except: pass
 
-        text = ""
-        transcript_status = "No Transcript"
-
-        # 🔥 TRY GETTING TRANSCRIPT (Any language)
+        text = description
+        transcript_status = "Description only"
+        
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(vid)
-            # Try English/Hindi manually created first
-            try:
-                transcript = transcript_list.find_manually_created_transcript(['en', 'hi'])
-            except:
-                # Then auto-generated
-                try:
-                    transcript = transcript_list.find_generated_transcript(['en', 'hi'])
-                except:
-                    # Then just grab whatever is there and translate to English
-                    transcript = transcript_list.find_transcript(['en']).translate('en')
             
-            data = transcript.fetch()
-            text = " ".join([i['text'] for i in data])
-            transcript_status = "Success"
+            # Try Manual -> Auto -> Translate
+            transcript = None
+            try: transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'hi', 'hi-IN'])
+            except: 
+                try: transcript = transcript_list.find_generated_transcript(['en', 'en-US', 'hi'])
+                except:
+                    # Fallback: Translate whatever exists to English
+                    try: transcript = transcript_list.find_transcript(['en']).translate('en')
+                    except: pass # Use whatever is first found below
+
+            if not transcript:
+                # Grab the first available and force translate if needed
+                for t in transcript_list:
+                    transcript = t
+                    if t.language_code not in ['en', 'hi']:
+                        transcript = t.translate('en')
+                    break
+
+            if transcript:
+                transcript_data = transcript.fetch()
+                timestamped_text = ""
+                for entry in transcript_data:
+                    timestamp = entry.get('start', 0)
+                    minutes = int(timestamp // 60)
+                    seconds = int(timestamp % 60)
+                    timestamped_text += f"[{minutes:02d}:{seconds:02d}] {entry['text']} "
+                text = timestamped_text
+                transcript_status = "Transcript Loaded"
+                
         except Exception as e:
-            print(f"Transcript Error: {e}")
-            text = f"Title: {title}. (Transcript unavailable). Answer based on your knowledge of this topic."
-            transcript_status = "Failed"
+            print(f"⚠️ Transcript fallback: {e}")
+
+        # If content is still thin, use LLM to hallucinate (smartly) a summary based on metadata
+        if len(text) < 50:
+            try:
+                summary = llm.invoke(f"Generate a detailed summary of a video titled '{title}' with description '{description}'. Assume it covers the topic in depth.").content
+                text += f"\n\n[AI Summary]:\n{summary}"
+                transcript_status = "AI Summary Generated"
+            except: pass
 
         doc = Document(page_content=text, metadata={"source": video_url, "type": "youtube", "title": title})
         split_and_store([doc])
         
-        return {
-            "status": "Success", 
-            "title": title, 
-            "content": text[:5000], # Limit for DB
-            "transcript_status": transcript_status
-        }
-    except Exception as e: 
-        print(f"YT Critical Error: {e}")
-        return {"status": "Error", "detail": str(e)}
+        return {"status": "Success", "title": title, "content": text[:4000], "transcript_status": transcript_status}
+    except Exception as e: return {"status": "Error", "detail": str(e)}
 
 def process_website(url):
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200: return {"status": "Error", "detail": "Invalid Link"}
-
         soup = BeautifulSoup(r.text, 'html.parser')
-        for s in soup(["script", "style"]): s.decompose()
-        text = soup.get_text(separator="\n").strip()
+        for element in soup(["script", "style", "nav", "footer"]): element.decompose()
+        text = soup.get_text(separator="\n", strip=True)
         title = soup.title.string.strip() if soup.title else "Website"
+
+        if len(text) < 100: return {"status": "Error", "detail": "Content too short"}
 
         doc = Document(page_content=text, metadata={"source": url, "type": "web", "title": title})
         split_and_store([doc])
-        return {"status": "Success", "title": title, "content": text[:5000]}
+        return {"status": "Success", "title": title, "content": text}
     except Exception as e: return {"status": "Error", "detail": str(e)}
 
 def answer_query(question):
     try:
         retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-        template = """You are a helpful AI assistant. Answer based on context:\n{context}\nQuestion: {question}"""
+        template = """You are a helpful AI assistant.
+        Context: {context}
+        Question: {question}
+        Answer:"""
         prompt = ChatPromptTemplate.from_template(template)
         chain = ({"context": retriever, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser())
         return chain.invoke(question)
     except: return "I encountered an error answering that."
+
+def clear_database():
+    try:
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        index = pc.Index(PINECONE_INDEX_NAME)
+        index.delete(delete_all=True)
+        return True
+    except: return False

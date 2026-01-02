@@ -256,9 +256,9 @@ const DocumentViewer = ({
 
   return (
     <div
-      className={`flex flex-col h-full ${isFullscreen ? "fixed inset-0 z-60 bg-white dark:bg-[#0c0c0e]" : ""}`}
+      className={`flex flex-col h-full ${isFullscreen ? "fixed inset-0 z-[60] bg-white dark:bg-[#0c0c0e]" : ""}`}
     >
-      <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 bg-zinc-50/80 dark:bg-[#121212]/80 backdrop-blur-sm shrink-0">
+      <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 bg-zinc-50/80 dark:bg-[#121212]/80 backdrop-blur-sm flex-shrink-0">
         <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
           {source.type === "youtube" && (
             <Youtube className="h-4 w-4 text-red-500" />
@@ -589,7 +589,7 @@ export default function ChatPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-100 bg-white/90 dark:bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center"
+            className="fixed inset-0 z-[100] bg-white/90 dark:bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center"
           >
             <div className="relative">
               <div className="h-40 w-40 border-4 border-indigo-500/20 rounded-full animate-[spin_4s_linear_infinite]"></div>
@@ -598,7 +598,7 @@ export default function ChatPage() {
                 <Sparkles className="h-12 w-12 text-indigo-500 animate-pulse" />
               </div>
             </div>
-            <h2 className="mt-8 text-2xl font-bold bg-clip-text text-transparent bg-linear-to-r from-indigo-500 to-purple-600 animate-pulse">
+            <h2 className="mt-8 text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 animate-pulse">
               Scanning Neural Paths...
             </h2>
             <p className="text-zinc-500 mt-2 font-mono text-sm">
@@ -608,10 +608,10 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
       {isDragging && (
-        <div className="fixed inset-0 z-9999 cursor-col-resize bg-transparent select-none"></div>
+        <div className="fixed inset-0 z-[9999] cursor-col-resize bg-transparent select-none"></div>
       )}
       {/* Sidebar */}
-      <div className="w-75 bg-white dark:bg-[#0c0c0e] border-r border-zinc-200 dark:border-zinc-800 flex flex-col z-20 shadow-sm flex-none transition-colors duration-300">
+      <div className="w-[300px] bg-white dark:bg-[#0c0c0e] border-r border-zinc-200 dark:border-zinc-800 flex flex-col z-20 shadow-sm flex-none transition-colors duration-300">
         <div className="p-5 flex items-center justify-between">
           <div
             className="flex items-center gap-3 font-bold tracking-tight text-xl cursor-pointer"
@@ -773,7 +773,7 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto space-y-10 pb-32">
             {messages.length === 0 && !activeSource && (
               <div className="text-center mt-32 animate-in fade-in zoom-in duration-700">
-                <div className="w-24 h-24 bg-linear-to-tr from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-[2rem] mx-auto flex items-center justify-center mb-6 shadow-2xl border border-white/50 dark:border-white/5">
+                <div className="w-24 h-24 bg-gradient-to-tr from-white to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-[2rem] mx-auto flex items-center justify-center mb-6 shadow-2xl border border-white/50 dark:border-white/5">
                   <Sparkles className="h-10 w-10 text-indigo-500" />
                 </div>
                 <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
@@ -824,7 +824,7 @@ export default function ChatPage() {
                                   style={vscDarkPlus}
                                   language={match[1]}
                                   PreTag="div"
-                                  className="bg-white! dark:bg-[#1e1e1e]! p-4! m-0! text-sm"
+                                  className="!bg-white dark:!bg-[#1e1e1e] !p-4 !m-0 text-sm"
                                   {...props}
                                 >
                                   {String(children).replace(/\n$/, "")}
