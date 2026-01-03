@@ -85,18 +85,24 @@ async def upload_file(user_id: str = Form(...), file: UploadFile = File(...)):
     finally:
         if os.path.exists(file_path): os.remove(file_path)
 
+# backend/main.py ke chat_endpoint mein:
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
         current_chat_id = request.chat_id
-        if not current_chat_id and request.source_type == "general":
-            return {"answer": answer_query(request.query), "chat_id": None}
-
+        
+        # 1. Create session if new
         if not current_chat_id:
             current_chat_id = create_chat_session(request.user_id, request.source_title, request.source_type, request.source_url)
         
+        # 2. Save User Message
         save_message(current_chat_id, "user", request.query)
-        ai_response = answer_query(request.query)
+        
+        # 3. Get Answer (Passing chat_id now for Memory!)
+        ai_response = answer_query(request.query, current_chat_id)
+        
+        # 4. Save AI Message
         save_message(current_chat_id, "ai", ai_response)
         
         return {"answer": ai_response, "chat_id": current_chat_id}

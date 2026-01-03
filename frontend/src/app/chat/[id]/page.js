@@ -167,6 +167,11 @@ const LibrarySection = ({
 );
 
 // Document Viewer Component
+// ... existing imports ...
+
+// ---------------------------------------------------------
+// 1. REPLACE THE OLD DocumentViewer COMPONENT WITH THIS ONE
+// ---------------------------------------------------------
 const DocumentViewer = ({
   source,
   viewMode,
@@ -175,50 +180,72 @@ const DocumentViewer = ({
   isFullscreen,
   onToggleFullscreen,
 }) => {
+  // Helper to detect language for code files
+  const getLanguage = (filename) => {
+    const ext = filename?.split('.').pop()?.toLowerCase();
+    const map = {
+      js: 'javascript', jsx: 'javascript', py: 'python', 
+      cpp: 'cpp', c: 'c', java: 'java', html: 'html', 
+      css: 'css', json: 'json', ts: 'typescript', tsx: 'typescript'
+    };
+    return map[ext] || 'text';
+  };
+
   const getViewerContent = () => {
+    // Force Text Mode if requested
     if (viewMode === "text") {
       return (
         <div className="p-8 max-w-4xl mx-auto">
           <div className="prose prose-zinc dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-zinc-50 dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800">
-              {source.content || "No content available"}
+            <h3 className="text-lg font-bold mb-4">Extracted Text Content</h3>
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-zinc-50 dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+              {source.content || "No text content extracted."}
             </pre>
           </div>
         </div>
       );
     }
 
+    // Handle File Types
     switch (source.type) {
       case "youtube":
         const videoId = getYouTubeID(source.url);
         return (
-          <div className="w-full h-full flex flex-col">
-            <div className="flex-1 bg-black">
-              <iframe
+          <div className="w-full h-full flex flex-col bg-black">
+             <iframe
                 src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`}
-                className="w-full h-full"
+                className="w-full h-full flex-1"
                 allowFullScreen
                 title="YouTube Video"
               />
-            </div>
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-              <p className="text-xs text-zinc-500 mb-2">Transcript Preview</p>
-              <div className="max-h-40 overflow-y-auto text-sm text-zinc-700 dark:text-zinc-300">
-                {source.content?.substring(0, 500)}...
-              </div>
-            </div>
           </div>
         );
+
       case "pdf":
         return source.url ? (
-          <iframe
-            src={`${source.url}#toolbar=1&navpanes=1&scrollbar=1`}
-            className="w-full h-full bg-white"
-            title="PDF Viewer"
-          />
+          <object
+            data={source.url}
+            type="application/pdf"
+            className="w-full h-full bg-zinc-100"
+          >
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-2">
+              <p>Unable to display PDF natively.</p>
+              <a 
+                href={source.url} 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-indigo-500 hover:underline"
+              >
+                Download/View in New Tab
+              </a>
+            </div>
+          </object>
         ) : (
-          <div className="text-center p-10">Preview Unavailable</div>
+          <div className="flex items-center justify-center h-full text-zinc-400">PDF URL not available</div>
         );
+
+      // 🚨 IMPORTANT: Office Viewer requires the URL to be PUBLICLY accessible on the internet.
+      // It will NOT work with localhost URLs.
       case "word":
       case "excel":
         return source.url ? (
@@ -228,105 +255,77 @@ const DocumentViewer = ({
             title="Office Viewer"
           />
         ) : (
-          <div className="text-center p-10">Preview Unavailable</div>
+          <div className="flex items-center justify-center h-full text-zinc-400">Document URL not available</div>
         );
+
+      // ✨ NEW: Code Editor View
+      case "code":
+        return (
+          <div className="h-full w-full bg-[#1e1e1e] overflow-auto custom-scrollbar">
+             <div className="sticky top-0 bg-[#2d2d2d] text-zinc-400 text-xs px-4 py-2 border-b border-[#404040] font-mono">
+               {source.name}
+             </div>
+             <SyntaxHighlighter
+                language={getLanguage(source.name)}
+                style={vscDarkPlus}
+                customStyle={{ margin: 0, padding: '1.5rem', fontSize: '14px', lineHeight: '1.5' }}
+                showLineNumbers={true}
+                wrapLines={true}
+             >
+               {source.content || ""}
+             </SyntaxHighlighter>
+          </div>
+        );
+        
       case "web":
       case "website":
-        return source.url && source.url.startsWith("http") ? (
+         return source.url ? (
           <iframe
             src={source.url}
             className="w-full h-full bg-white"
-            sandbox="allow-scripts allow-same-origin allow-popups"
+            sandbox="allow-scripts allow-same-origin allow-popups" // Security restriction
             title="Website Viewer"
           />
-        ) : (
-          <div className="p-8">
-            <pre className="text-xs">{source.content}</pre>
-          </div>
-        );
+         ) : (
+           <div className="p-10 text-center">Cannot embed this website. Use &apos;Text&apos; mode.</div>
+         );
+
       default:
         return (
-          <div className="p-8 text-center">
-            <p>Preview not available.</p>
-            <p className="text-xs">Use Text Mode.</p>
+          <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+            <p>No preview available for this file type.</p>
+            <Button variant="outline" onClick={onToggleMode} className="mt-4">
+              Switch to Text View
+            </Button>
           </div>
         );
     }
   };
 
   return (
-    <div
-      className={`flex flex-col h-full ${isFullscreen ? "fixed inset-0 z-[60] bg-white dark:bg-[#0c0c0e]" : ""}`}
-    >
+    <div className={`flex flex-col h-full ${isFullscreen ? "fixed inset-0 z-[60] bg-white dark:bg-[#0c0c0e]" : ""}`}>
+      {/* Header Bar */}
       <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 bg-zinc-50/80 dark:bg-[#121212]/80 backdrop-blur-sm flex-shrink-0">
-        <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-          {source.type === "youtube" && (
-            <Youtube className="h-4 w-4 text-red-500" />
-          )}
-          {source.type === "pdf" && (
-            <FileText className="h-4 w-4 text-red-500" />
-          )}
-          {source.type === "word" && (
-            <FileText className="h-4 w-4 text-blue-500" />
-          )}
-          {source.type === "excel" && (
-            <FileText className="h-4 w-4 text-emerald-500" />
-          )}
-          {(source.type === "web" || source.type === "website") && (
-            <Globe className="h-4 w-4 text-indigo-500" />
-          )}
-          {source.name}
-        </span>
-        <div className="flex items-center gap-2">
-          {source.url && (
-            <Button
-              onClick={() => window.open(source.url, "_blank")}
-              size="sm"
-              variant="ghost"
-              className="h-7 text-[10px]"
-            >
-              <ExternalLink className="h-3 w-3 mr-1" /> Open
+         {/* ... (Same as before, keep your header buttons) ... */}
+         <div className="flex items-center gap-2 overflow-hidden">
+             <span className="font-semibold text-sm truncate max-w-[200px]">{source.name}</span>
+         </div>
+         <div className="flex items-center gap-2">
+            <Button onClick={onToggleMode} size="sm" variant="ghost" className="h-8 text-xs">
+              {viewMode === "native" ? "Raw Text" : "Preview"}
             </Button>
-          )}
-          <Button
-            onClick={onToggleMode}
-            size="sm"
-            variant="ghost"
-            className="h-7 text-[10px]"
-          >
-            <Type className="h-3 w-3 mr-1" />{" "}
-            {viewMode === "native" ? "Text" : "View"}
-          </Button>
-          <Button
-            onClick={onToggleFullscreen}
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 rounded-full"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </Button>
-          {!isFullscreen && (
-            <Button
-              onClick={onClose}
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 rounded-full"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+            {/* Add Close/Fullscreen buttons from your original code here */}
+            <Button onClick={onClose} size="icon" variant="ghost"><X className="h-4 w-4"/></Button>
+         </div>
       </div>
-      <div className="flex-1 overflow-auto bg-zinc-50 dark:bg-[#0a0a0a]">
+
+      <div className="flex-1 overflow-hidden relative bg-zinc-100 dark:bg-black">
         {getViewerContent()}
       </div>
     </div>
   );
 };
+
 
 export default function ChatPage() {
   const { id } = useParams();

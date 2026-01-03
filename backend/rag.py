@@ -15,6 +15,9 @@ from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from pinecone import Pinecone
 from supabase import create_client, Client
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_community.document_loaders import PyMuPDFLoader
+
 
 load_dotenv()
 
@@ -137,7 +140,7 @@ def process_document(file_path, original_filename):
         loader, doc_type, docs = None, "file", []
         
         if file_path.endswith(".pdf"): 
-            loader = PyPDFLoader(file_path); doc_type = "pdf"
+            loader = PyMuPDFLoader(file_path); doc_type = "pdf"
         elif file_path.endswith(".docx"): 
             loader = Docx2txtLoader(file_path); doc_type = "word"
         elif file_path.endswith((".xlsx", ".xls")):
@@ -269,17 +272,54 @@ def process_website(url):
         return {"status": "Success", "title": title, "content": text}
     except Exception as e: return {"status": "Error", "detail": str(e)}
 
-def answer_query(question):
+def answer_query(question, chat_id=None):
     try:
+        # 1. Fetch Chat History from Supabase if chat_id exists
+        chat_history = []
+        if chat_id:
+            previous_msgs = supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=True).limit(10).execute()
+            # Reverse because we fetch mostly recent first, but LLM needs chronological order
+            for msg in reversed(previous_msgs.data):
+                if msg['role'] == 'user':
+                    chat_history.append(HumanMessage(content=msg['content']))
+                else:
+                    chat_history.append(AIMessage(content=msg['content']))
+
+        # 2. Setup Contextual Prompt
         retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-        template = """You are a helpful AI assistant.
-        Context: {context}
-        Question: {question}
-        Answer:"""
+        
+        # Ye prompt history ko include karega
+        template = """You are SecondBrain, a smart personal knowledge assistant.
+        
+        Chat History:
+        {chat_history}
+        
+        Context from documents:
+        {context}
+        
+        User Question: {question}
+        
+        Answer based strictly on the context provided. If the answer is not in the context, say you don't know. 
+        Cite the source document names if possible."""
+        
         prompt = ChatPromptTemplate.from_template(template)
-        chain = ({"context": retriever, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser())
+        
+        # 3. Chain Execution
+        chain = (
+            {
+                "context": retriever, 
+                "question": RunnablePassthrough(),
+                "chat_history": lambda x: chat_history # Inject history here
+            } 
+            | prompt 
+            | llm 
+            | StrOutputParser()
+        )
+        
         return chain.invoke(question)
-    except: return "I encountered an error answering that."
+    except Exception as e:
+        print(f"Error in answer_query: {e}")
+        return "I encountered an error answering that."
 
 def clear_database():
     try:
